@@ -1,5 +1,6 @@
 using TaskManagerTelegramBot_Vinokurov.Classes;
 using Telegram.Bot;
+using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
@@ -101,6 +102,58 @@ namespace TaskManagerTelegramBot_Vinokurov
                         );
                     }
                 }
+            }
+        }
+        public void GetMessages(Message message)
+        {
+            Console.WriteLine("Полученое сообщение: " + message.Text + " от пользователя: " + message.Chat.Username);
+            long IdUser = message.Chat.Id;
+            string MessageUser = message.Text;
+
+            if (message.Text.Contains("/"))
+            {
+
+                Command(message.Chat.Id, message.Text);
+            }
+            else if (message.Text.Equals("Удалить все задачи"))
+            {
+                Users User = Users.Find(x => x.IdUser == message.Chat.Id);
+
+                if (User == null) SendMessages(message.Chat.Id, 4);
+                else if (User.Events.Count == 0) SendMessages(User.IdUser, 4);
+                else
+                {
+                    User.Events = new List<Events>();
+                    SendMessages(User.IdUser, 6);
+                }
+            }
+            else
+            {
+                Users User = Users.Find(x => x.IdUser == message.Chat.Id);
+                if (User == null)
+                {
+                    User = new Users(message.Chat.Id);
+                    Users.Add(User);
+                }
+
+                string[] Info = message.Text.Split('\n');
+                if(Info.Length < 2)
+                {
+                    SendMessages(message.Chat.Id, 2);
+                    return;
+                }
+                DateTime Time;
+                if (CheckFormatDateTime(Info[0], out Time) == false)
+                {
+                    SendMessages(message.Chat.Id, 2);
+                    return;
+                }
+
+                if(Time < DateTime.Now) SendMessages(message.Chat.Id,3);
+
+                User.Events.Add(new Events(
+                    Time,
+                    message.Text.Replace(Time.ToString("HH:mm dd.MM.yyyy") + "\n", "")));
             }
         }
     }
