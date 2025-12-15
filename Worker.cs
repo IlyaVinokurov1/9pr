@@ -1,7 +1,26 @@
+using TaskManagerTelegramBot_Vinokurov.Classes;
+using Telegram.Bot;
+using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.ReplyMarkups;
+
 namespace TaskManagerTelegramBot_Vinokurov
 {
     public class Worker : BackgroundService
     {
+
+        readonly string Token = "";
+
+        TelegramBotClient TelegramBotClient;
+
+        List<Users> Users = new List<Users>();
+        Timer Timer;
+
+        List<string> Messages = new List<string>()
+        {
+            ""
+        };
+
+
         private readonly ILogger<Worker> _logger;
 
         public Worker(ILogger<Worker> logger)
@@ -18,6 +37,70 @@ namespace TaskManagerTelegramBot_Vinokurov
                     _logger.LogInformation("Worker running at: {time}", DateTimeOffset.Now);
                 }
                 await Task.Delay(1000, stoppingToken);
+            }
+        }
+
+        public bool CheckFormatDateTime(string value, out DateTime time)
+        {
+            return DateTime.TryParse(value, out time);
+        }
+
+        private static ReplyKeyboardMarkup GetButtons()
+        {
+            List<KeyboardButton> keyboardButton = new List<KeyboardButton>();
+            keyboardButton.Add(new KeyboardButton("Удалить все задачи"));
+
+            return new ReplyKeyboardMarkup
+            {
+                Keyboard = new List<List<KeyboardButton>>
+                {
+                    keyboardButton
+                }
+            };
+        }
+
+        public static InlineKeyboardMarkup DeleteEvent(string Message)
+        {
+            List<InlineKeyboardButton> inlineKeyboards = new List<InlineKeyboardButton>();
+            inlineKeyboards.Add(new InlineKeyboardButton("Delete"));
+            return new InlineKeyboardMarkup(inlineKeyboards);
+        }
+        public async void SendMessages(long chatId, int typeMessage)
+        {
+            if(typeMessage != 3) {
+                await TelegramBotClient.SendMessage(
+                    chatId,
+                    Messages[typeMessage],
+                    ParseMode.Html,
+                    replyMarkup: GetButtons());
+            }
+            else if(typeMessage == 3)
+            {
+                await TelegramBotClient.SendMessage(
+                    chatId, $"Указанное вами врея и даа не могут быть установлены, " +
+                    $"потому что сейчас ууже: {DateTime.Now.ToString("HH:mm dd.MM.yyyy")}"
+                    );
+            }
+        }
+
+        public async void Command(long chatId, string command)
+        {
+            if (command.ToLower() == "/start") SendMessages(chatId, 0);
+            else if (command.ToLower() =="/create_task") SendMessages(chatId, 1);
+            else if(command.ToLower() == "/list_tasks"){
+                Users User = Users.Find (x => x.IdUser == chatId);
+                if (User == null) SendMessages(chatId, 4);
+                else if(User.Events.Count == 0) SendMessages(chatId, 4);
+                else
+                {
+                    foreach (Events Event in User.Events) {
+                        await TelegramBotClient.SendMessage(
+                            chatId, $"Уведомить пользователя: {Event.Time.ToString("HH:mm dd.MM.yyyy")}, " +
+                        $"\nСообщение: {Event.Message}",
+                            replyMarkup: DeleteEvent(Event.Message)
+                        );
+                    }
+                }
             }
         }
     }
