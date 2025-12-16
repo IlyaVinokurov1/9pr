@@ -8,167 +8,126 @@ namespace TaskManagerTelegramBot_Vinokurov.Classes
     {
         private string _connectionString = "Server=localhost;port=3307;Database=TaskManagerDB;User=root;Password=;";
 
-        public DbContext()
-        {
-            // Если нужно изменить строку подключения, можно добавить метод SetConnectionString
-        }
-
-        // Получить пользователя из БД (всегда возвращает пользователя, создает если не существует)
         public Users GetUser(long userId)
         {
-            try
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            var checkUserCmd = new MySqlCommand("SELECT IdUser FROM Users WHERE IdUser = @IdUser", connection);
+            checkUserCmd.Parameters.AddWithValue("@IdUser", userId);
+
+            var userExists = checkUserCmd.ExecuteScalar() != null;
+
+            if (!userExists)
             {
-                using var connection = new MySqlConnection(_connectionString);
-                connection.Open();
-
-                // Проверяем, существует ли пользователь
-                var checkUserCmd = new MySqlCommand("SELECT IdUser FROM Users WHERE IdUser = @IdUser", connection);
-                checkUserCmd.Parameters.AddWithValue("@IdUser", userId);
-
-                var userExists = checkUserCmd.ExecuteScalar() != null;
-
-                if (!userExists)
-                {
-                    // Создаем нового пользователя
-                    var createUserCmd = new MySqlCommand("INSERT INTO Users (IdUser) VALUES (@IdUser)", connection);
-                    createUserCmd.Parameters.AddWithValue("@IdUser", userId);
-                    createUserCmd.ExecuteNonQuery();
-                }
-
-                // Создаем объект пользователя
-                var user = new Users
-                {
-                    IdUser = userId,
-                    Events = new List<Events>()
-                };
-
-                // Загружаем события пользователя
-                var getEventsCmd = new MySqlCommand("SELECT Id, Message, EventTime FROM Events WHERE IdUser = @IdUser", connection);
-                getEventsCmd.Parameters.AddWithValue("@IdUser", userId);
-
-                using var reader = getEventsCmd.ExecuteReader();
-                while (reader.Read())
-                {
-                    user.Events.Add(new Events
-                    {
-                        Id = reader.GetInt32("Id"),
-                        Message = reader.GetString("Message"),
-                        Time = reader.GetDateTime("EventTime")
-                    });
-                }
-
-                return user;
+                var createUserCmd = new MySqlCommand("INSERT INTO Users (IdUser) VALUES (@IdUser)", connection);
+                createUserCmd.Parameters.AddWithValue("@IdUser", userId);
+                createUserCmd.ExecuteNonQuery();
             }
-            catch (Exception ex)
+
+            var user = new Users
             {
-                Console.WriteLine($"Ошибка при получении пользователя: {ex.Message}");
-                // В случае ошибки возвращаем нового пользователя
-                return new Users
+                IdUser = userId,
+                Events = new List<Events>()
+            };
+
+            var getEventsCmd = new MySqlCommand("SELECT Id, Message, EventTime, RepeatPattern FROM Events WHERE IdUser = @IdUser", connection);
+            getEventsCmd.Parameters.AddWithValue("@IdUser", userId);
+
+            using var reader = getEventsCmd.ExecuteReader();
+            while (reader.Read())
+            {
+                user.Events.Add(new Events
                 {
-                    IdUser = userId,
-                    Events = new List<Events>()
-                };
+                    Id = reader.GetInt32("Id"),
+                    Message = reader.GetString("Message"),
+                    Time = reader.GetDateTime("EventTime"),
+                    RepeatPattern = reader.IsDBNull(reader.GetOrdinal("RepeatPattern")) ? null : reader.GetString("RepeatPattern")
+                });
             }
+
+            return user;
         }
 
-        // Добавить событие
-        public void AddEvent(long userId, Events eventItem)
+        public int AddEvent(long userId, Events eventItem)
         {
-            try
-            {
-                using var connection = new MySqlConnection(_connectionString);
-                connection.Open();
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
 
-                var cmd = new MySqlCommand(
-                    "INSERT INTO Events (IdUser, Message, EventTime) VALUES (@IdUser, @Message, @EventTime)",
-                    connection);
+            var cmd = new MySqlCommand(
+                "INSERT INTO Events (IdUser, Message, EventTime, RepeatPattern) VALUES (@IdUser, @Message, @EventTime, @RepeatPattern); SELECT LAST_INSERT_ID();",
+                connection);
 
-                cmd.Parameters.AddWithValue("@IdUser", userId);
-                cmd.Parameters.AddWithValue("@Message", eventItem.Message);
-                cmd.Parameters.AddWithValue("@EventTime", eventItem.Time);
+            cmd.Parameters.AddWithValue("@IdUser", userId);
+            cmd.Parameters.AddWithValue("@Message", eventItem.Message);
+            cmd.Parameters.AddWithValue("@EventTime", eventItem.Time);
+            cmd.Parameters.AddWithValue("@RepeatPattern", (object)eventItem.RepeatPattern ?? DBNull.Value);
 
-                cmd.ExecuteNonQuery();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Ошибка при добавлении события: {ex.Message}");
-            }
+            return Convert.ToInt32(cmd.ExecuteScalar());
         }
 
-        // Удалить событие
-        public void DeleteEvent(string message, long userId)
+        public void DeleteEvent(int eventId, long userId)
         {
-            try
-            {
-                using var connection = new MySqlConnection(_connectionString);
-                connection.Open();
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
 
-                var cmd = new MySqlCommand("DELETE FROM Events WHERE Message = @Message AND IdUser = @IdUser", connection);
-                cmd.Parameters.AddWithValue("@Message", message);
-                cmd.Parameters.AddWithValue("@IdUser", userId);
-                cmd.ExecuteNonQuery();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Ошибка при удалении события: {ex.Message}");
-            }
+            var cmd = new MySqlCommand("DELETE FROM Events WHERE Id = @Id AND IdUser = @IdUser", connection);
+            cmd.Parameters.AddWithValue("@Id", eventId);
+            cmd.Parameters.AddWithValue("@IdUser", userId);
+            cmd.ExecuteNonQuery();
         }
 
-        // Удалить все события пользователя
         public void DeleteAllUserEvents(long userId)
         {
-            try
-            {
-                using var connection = new MySqlConnection(_connectionString);
-                connection.Open();
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
 
-                var cmd = new MySqlCommand("DELETE FROM Events WHERE IdUser = @IdUser", connection);
-                cmd.Parameters.AddWithValue("@IdUser", userId);
-                cmd.ExecuteNonQuery();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Ошибка при удалении всех событий: {ex.Message}");
-            }
+            var cmd = new MySqlCommand("DELETE FROM Events WHERE IdUser = @IdUser", connection);
+            cmd.Parameters.AddWithValue("@IdUser", userId);
+            cmd.ExecuteNonQuery();
         }
 
-        // Получить все активные события (для таймера)
         public List<(long userId, Events eventItem)> GetActiveEvents()
         {
             var result = new List<(long, Events)>();
 
-            try
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            var currentTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+
+            var cmd = new MySqlCommand(
+                "SELECT Id, IdUser, Message, EventTime, RepeatPattern FROM Events WHERE DATE_FORMAT(EventTime, '%Y-%m-%d %H:%i') = @CurrentTime",
+                connection);
+
+            cmd.Parameters.AddWithValue("@CurrentTime", currentTime);
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
             {
-                using var connection = new MySqlConnection(_connectionString);
-                connection.Open();
-
-                var currentTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
-
-                var cmd = new MySqlCommand(
-                    "SELECT Id, IdUser, Message, EventTime FROM Events WHERE DATE_FORMAT(EventTime, '%Y-%m-%d %H:%i') = @CurrentTime",
-                    connection);
-
-                cmd.Parameters.AddWithValue("@CurrentTime", currentTime);
-
-                using var reader = cmd.ExecuteReader();
-                while (reader.Read())
+                var eventItem = new Events
                 {
-                    var eventItem = new Events
-                    {
-                        Id = reader.GetInt32("Id"),
-                        Message = reader.GetString("Message"),
-                        Time = reader.GetDateTime("EventTime")
-                    };
+                    Id = reader.GetInt32("Id"),
+                    Message = reader.GetString("Message"),
+                    Time = reader.GetDateTime("EventTime"),
+                    RepeatPattern = reader.IsDBNull(reader.GetOrdinal("RepeatPattern")) ? null : reader.GetString("RepeatPattern")
+                };
 
-                    result.Add((reader.GetInt64("IdUser"), eventItem));
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Ошибка при получении активных событий: {ex.Message}");
+                result.Add((reader.GetInt64("IdUser"), eventItem));
             }
 
             return result;
+        }
+
+        public void UpdateEventTime(int eventId, DateTime newTime)
+        {
+            using var connection = new MySqlConnection(_connectionString);
+            connection.Open();
+
+            var cmd = new MySqlCommand("UPDATE Events SET EventTime = @NewTime WHERE Id = @Id", connection);
+            cmd.Parameters.AddWithValue("@Id", eventId);
+            cmd.Parameters.AddWithValue("@NewTime", newTime);
+            cmd.ExecuteNonQuery();
         }
     }
 }
