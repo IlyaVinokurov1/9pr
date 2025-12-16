@@ -1,8 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace TaskManagerTelegramBot_Vinokurov.Classes
 {
@@ -10,11 +7,13 @@ namespace TaskManagerTelegramBot_Vinokurov.Classes
     {
         public long IdUser { get; set; }
         public List<Events> Events { get; set; }
-        public Users(long idUser)
+        public Users()
         {
-            IdUser = idUser;
             Events = new List<Events>();
         }
-
+        public Users(long idUser) : this()
+        {
+            IdUser = idUser;
+        }
     }
 }
