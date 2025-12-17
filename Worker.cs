@@ -18,7 +18,7 @@ namespace TaskManagerTelegramBot_Vinokurov
 
         List<string> Messages = new List<string>()
         {
-            // 0 - Приветствие
+   
             "Здравствуйте! " +
             "\nРады приветствовать вас в Telegram-боте «Напоминатор»!" +
             "\nНаш бот создан для того, чтобы напоминать вам о важных событиях и мероприятиях. " +
@@ -26,7 +26,7 @@ namespace TaskManagerTelegramBot_Vinokurov
             "\nНе забудьте добавить бота в список своих контактов и настроить уведомления. " +
             "Тогда вы всегда будете в курсе событий!",
 
-            // 1 - Формат задачи
+ 
             "Формат обычной задачи:" +
             "\n<b>12:51 26.01.2025</b>" +
             "\nКупить продукты" +
@@ -35,26 +35,23 @@ namespace TaskManagerTelegramBot_Vinokurov
             "\nВыпить таблетки" +
             "\n\nДни недели: ПН, ВТ, СР, ЧТ, ПТ, СБ, ВС",
 
-            // 2 - Успех
-            "Задача создана!",
 
-            // 3 - Ошибка
+            "Работает!!!",
+
             "Ошибка. Проверьте формат.",
 
-            // 4 - Дата в прошлом
             "Это время уже прошло.",
 
-            // 5 - Нет задач
+
             "Задач нет.",
 
-            // 6 - Задача удалена
+
             "Задача удалена.",
 
-            // 7 - Все задачи удалены
             "Все задачи удалены."
         };
 
-        // Словарь дней недели
+  
         private Dictionary<string, DayOfWeek> dayMap = new Dictionary<string, DayOfWeek>
         {
             {"ПН", DayOfWeek.Monday},
@@ -127,7 +124,7 @@ namespace TaskManagerTelegramBot_Vinokurov
                     foreach (Events Event in User.Events)
                     {
                         string repeatInfo = string.IsNullOrEmpty(Event.RepeatPattern)
-                            ? "Однократно"
+                            ? ""
                             : $"Повторяется: {Event.RepeatPattern}";
                         string timeInfo = string.IsNullOrEmpty(Event.RepeatPattern)
                             ? $"Время: {Event.Time.ToString("HH:mm dd.MM.yyyy")}"
@@ -177,10 +174,8 @@ namespace TaskManagerTelegramBot_Vinokurov
             DateTime Time;
             string repeatPattern = null;
 
-            // Определяем тип задачи
             if (firstLine.Contains("каждый"))
             {
-                // Повторяющаяся задача: "21:00 каждый ПН,СР,ПТ"
                 string[] parts = firstLine.Split(' ');
 
                 if (parts.Length < 3 || !DateTime.TryParse(parts[0], out Time))
@@ -189,12 +184,11 @@ namespace TaskManagerTelegramBot_Vinokurov
                     return;
                 }
 
-                repeatPattern = parts[2]; // Дни недели
+                repeatPattern = parts[2]; 
 
-                // Устанавливаем на сегодня с указанным временем
                 Time = DateTime.Today.Add(Time.TimeOfDay);
 
-                // Если время уже прошло, добавляем 1 день
+
                 if (Time < DateTime.Now)
                 {
                     Time = Time.AddDays(1);
@@ -202,7 +196,7 @@ namespace TaskManagerTelegramBot_Vinokurov
             }
             else
             {
-                // Обычная задача: "12:51 26.01.2025"
+
                 if (!DateTime.TryParse(firstLine, out Time))
                 {
                     SendMessage(message.Chat.Id, 3);
@@ -216,7 +210,6 @@ namespace TaskManagerTelegramBot_Vinokurov
                 }
             }
 
-            // Создаем и сохраняем
             var newEvent = new Events(Time, taskMessage, repeatPattern);
             int eventId = dbContext.AddEvent(User.IdUser, newEvent);
             newEvent.Id = eventId;
@@ -256,14 +249,10 @@ namespace TaskManagerTelegramBot_Vinokurov
         {
             Console.WriteLine("Ошибка: " + exception.Message);
         }
-
-        // Метод для расчета следующего выполнения по дням недели
         private DateTime GetNextDay(DateTime currentTime, string repeatPattern)
         {
             if (string.IsNullOrEmpty(repeatPattern))
                 return currentTime;
-
-            // Получаем дни недели
             var days = new List<DayOfWeek>();
             var dayCodes = repeatPattern.Split(',');
 
@@ -278,8 +267,6 @@ namespace TaskManagerTelegramBot_Vinokurov
 
             if (days.Count == 0)
                 return currentTime;
-
-            // Ищем следующий подходящий день
             DateTime nextDate = currentTime;
 
             for (int i = 1; i <= 7; i++)
@@ -300,18 +287,18 @@ namespace TaskManagerTelegramBot_Vinokurov
 
             foreach (var (userId, eventItem) in activeEvents)
             {
-                // Отправляем напоминание
+
                 await TelegramBotClient.SendMessage(userId, "Напоминание: " + eventItem.Message);
 
                 if (!string.IsNullOrEmpty(eventItem.RepeatPattern))
                 {
-                    // Обновляем на следующий день по расписанию
+  
                     DateTime nextTime = GetNextDay(eventItem.Time, eventItem.RepeatPattern);
                     dbContext.UpdateEventTime(eventItem.Id, nextTime);
                 }
                 else
                 {
-                    // Удаляем однократную задачу
+                
                     dbContext.DeleteEvent(eventItem.Id, userId);
                 }
             }

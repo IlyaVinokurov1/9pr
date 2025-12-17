@@ -6,7 +6,7 @@ namespace TaskManagerTelegramBot_Vinokurov.Classes
 {
     public class DbContext
     {
-        private string _connectionString = "Server=localhost;port=3307;Database=TaskManagerDB;User=root;Password=;";
+        private string _connectionString = "Server=localhost;port=3306;Database=TaskManagerDB;User=root;Password=;";
 
         public Users GetUser(long userId)
         {
